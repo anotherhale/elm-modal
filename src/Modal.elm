@@ -2,12 +2,13 @@ module Modal exposing
     ( ClosingAnimation(..)
     , ClosingEffect(..)
     , Config
-    , Model
+    , Model(..)
     , Msg
     , OpenedAnimation(..)
     , OpeningAnimation(..)
     , animationEnd
     , closeModal
+    , cancelModal
     , cmdGetWindowSize
     , initModel
     , newConfig
@@ -55,6 +56,8 @@ type Model msg
     | Opened (Config msg)
     | Closing (Config msg)
     | Closed
+    | Canceling (Config msg)
+    | Canceled
 
 
 initModel : Model msg
@@ -91,6 +94,7 @@ subscriptions =
 type Msg msg
     = OpenModal (Config msg)
     | CloseModal
+    | CancelModal
     | AnimationEnd
     | GetWindowSize Float Float
 
@@ -211,6 +215,9 @@ closeModal : (Msg msg -> msg) -> msg
 closeModal fn =
     fn CloseModal
 
+cancelModal : (Msg msg -> msg) -> msg
+cancelModal fn =
+    fn CancelModal
 
 animationEnd : (Msg msg -> msg) -> msg
 animationEnd fn =
@@ -243,12 +250,17 @@ update msg model =
             )
 
         CloseModal ->
-            ( setModalState model
+            ( setModalState msg model
+            , Cmd.none
+            )
+
+        CancelModal ->
+            ( setModalState msg model
             , Cmd.none
             )
 
         AnimationEnd ->
-            ( setModalState model
+            ( setModalState msg model
             , Cmd.none
             )
 
@@ -300,6 +312,21 @@ view modal =
                     ]
 
             Closed ->
+                text ""
+
+            Canceling (Config config) ->
+                div
+                    [ modalFade
+                    , modalClose
+                    , closingEffectClass config.closingEffect
+                    ]
+                    [ modalBodyView
+                        (Just AnimationEnd)
+                        (closingAnimationClass config.closingAnimation config.modalBodySettings)
+                        (Config config)
+                    ]
+
+            Canceled ->
                 text ""
 
 
@@ -920,6 +947,14 @@ setModalBodyPosition width height model =
         Closed ->
             Closed
 
+        Canceling config ->
+            config
+                |> setBodySettings (recalcBodyModalProperties width height)
+                |> Canceling
+
+        Canceled ->
+            Canceled
+
 
 
 -- Private helpers
@@ -936,14 +971,18 @@ mapConfig fn config =
 {-| @priv
 Helper for update function
 -}
-setModalState : Model msg -> Model msg
-setModalState modal =
+setModalState : Msg msg -> Model msg -> Model msg
+setModalState msg modal =
     case modal of
         Opening config ->
             Opened config
 
         Opened config ->
-            Closing config
+            if msg == CancelModal then
+                Canceling config
+
+            else 
+                Closing config
 
         Closing _ ->
             Closed
@@ -951,6 +990,11 @@ setModalState modal =
         Closed ->
             Closed
 
+        Canceling _ ->
+            Canceled
+
+        Canceled ->
+            Canceled
 
 {-| @priv
 Centering and adaptive width for modal body
