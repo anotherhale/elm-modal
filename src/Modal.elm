@@ -6,8 +6,8 @@ module Modal exposing
     , OpenedAnimation(..)
     , OpeningAnimation(..)
     , animationEnd
-    , closeModal
     , cancelModal
+    , closeModal
     , cmdGetWindowSize
     , initModel
     , newConfig
@@ -122,7 +122,7 @@ type ClosingAnimation
     | ToBottom
     | ToLeft
     | ToNone
-    
+
 
 type BodySettings
     = BodySettings
@@ -208,9 +208,11 @@ closeModal : (Msg msg -> msg) -> msg
 closeModal fn =
     fn CloseModal
 
+
 cancelModal : (Msg msg -> msg) -> msg
 cancelModal fn =
     fn CancelModal
+
 
 animationEnd : (Msg msg -> msg) -> msg
 animationEnd fn =
@@ -230,11 +232,11 @@ just add
                     Modal.update modalMsg model.modal
             in
                 case updatedModal of
-                    Canceled -> 
+                    Canceled ->
                         ( { model | modal = updatedModal }  -- Model was canceled
                         , Cmd.batch [Cmd.map ModalMsg cmdModal]
                         )
-                    Closed -> 
+                    Closed ->
                         (  { model | modal = updatedModal, confirmed = True } -- Modal was confirmed/acknowledged
                         , Cmd.batch [Cmd.map ModalMsg cmdModal]
                         )
@@ -458,8 +460,6 @@ setClosingAnimation closing config =
     mapConfig fn config
 
 
-
-
 setBodyWidth : Float -> Config msg -> Config msg
 setBodyWidth width config =
     let
@@ -535,7 +535,7 @@ openedAnimationClass animation bodySettings =
             modalOpenFromTop bodySettings
 
         OpenFromRight ->
-            modalOpenFromRigth bodySettings
+            modalOpenFromRight bodySettings
 
         OpenFromBottom ->
             modalOpenFromBottom bodySettings
@@ -723,6 +723,8 @@ modalNoneOpening (BodySettings body) =
         , Css.position Css.absolute
         ]
 
+
+
 -- Open animations
 
 
@@ -752,8 +754,8 @@ modalOpenFromTop (BodySettings body) =
         ]
 
 
-modalOpenFromRigth : BodySettings -> Attribute msg
-modalOpenFromRigth (BodySettings body) =
+modalOpenFromRight : BodySettings -> Attribute msg
+modalOpenFromRight (BodySettings body) =
     css
         [ Css.property "right" body.center.value
         , Css.top body.fromTop
@@ -916,6 +918,7 @@ modalNoneClosing (BodySettings body) =
         ]
 
 
+
 -- Modal close animation
 
 
@@ -1014,7 +1017,7 @@ setModalState msg modal =
             if msg == CancelModal then
                 Canceling config
 
-            else 
+            else
                 Closing config
 
         Closing _ ->
@@ -1028,6 +1031,7 @@ setModalState msg modal =
 
         Canceled ->
             Canceled
+
 
 {-| @priv
 Centering and adaptive width for modal body
