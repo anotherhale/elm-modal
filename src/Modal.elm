@@ -1,14 +1,14 @@
 module Modal exposing
-    ( ClosingAnimation(..)
-    , ClosingEffect(..)
+    ( BodySettings
+    , ClosingAnimation(..)
     , Config
     , Model(..)
     , Msg
     , OpenedAnimation(..)
     , OpeningAnimation(..)
     , animationEnd
-    , closeModal
     , cancelModal
+    , closeModal
     , cmdGetWindowSize
     , initModel
     , newConfig
@@ -20,11 +20,15 @@ module Modal exposing
     , setBodyHeight
     , setBodyWidth
     , setClosingAnimation
-    , setClosingEffect
     , setFooter
     , setFooterCss
     , setHeader
     , setHeaderCss
+    , setModalCloseFn
+    , setModalClosingFn
+    , setModalFadeFn
+    , setModalOpenedFn
+    , setModalOpeningFn
     , setOpenedAnimation
     , setOpeningAnimation
     , subscriptions
@@ -108,6 +112,7 @@ type OpeningAnimation
     | FromRight
     | FromBottom
     | FromLeft
+    | FromNone
 
 
 type OpenedAnimation
@@ -122,11 +127,7 @@ type ClosingAnimation
     | ToRight
     | ToBottom
     | ToLeft
-
-
-type ClosingEffect
-    = WithoutAnimate
-    | WithAnimate
+    | ToNone
 
 
 type BodySettings
@@ -163,7 +164,11 @@ type Config msg
         { openingAnimation : OpeningAnimation
         , openedAnimation : OpenedAnimation
         , closingAnimation : ClosingAnimation
-        , closingEffect : ClosingEffect
+        , modalOpeningFn : Maybe (Attribute msg)
+        , modalOpenedFn : Maybe (Attribute msg)
+        , modalClosingFn : Maybe (Attribute msg)
+        , modalCloseFn : Maybe (Attribute msg)
+        , modalFadeFn : Maybe (Attribute msg)
         , headerCss : String
         , header : Header msg
         , bodyCss : String
@@ -186,7 +191,11 @@ newConfig tagger =
         { openingAnimation = FromTop
         , openedAnimation = OpenFromTop
         , closingAnimation = ToTop
-        , closingEffect = WithAnimate
+        , modalOpeningFn = Nothing
+        , modalOpenedFn = Nothing
+        , modalClosingFn = Nothing
+        , modalCloseFn = Nothing
+        , modalFadeFn = Nothing
         , headerCss = ""
         , header = text ""
         , bodyCss = ""
@@ -215,9 +224,14 @@ closeModal : (Msg msg -> msg) -> msg
 closeModal fn =
     fn CloseModal
 
+
 cancelModal : (Msg msg -> msg) -> msg
 cancelModal fn =
     fn CancelModal
+cancelModal : (Msg msg -> msg) -> msg
+cancelModal fn =
+    fn CancelModal
+
 
 animationEnd : (Msg msg -> msg) -> msg
 animationEnd fn =
@@ -231,14 +245,24 @@ animationEnd fn =
 {-| Update the component state. In your parent update function
 just add
 
-    ModalMsg modalMsg ->
-        let
-            ( updatedModal, cmdModal ) =
-                Modal.update modalMsg model.modal
-        in
-        ( { model | modal = updatedModal }
-        , Cmd.map ModalMsg cmdModal
-        )
+        ModalMsg modalMsg ->
+            let
+                ( updatedModal, cmdModal ) =
+                    Modal.update modalMsg model.modal
+            in
+                case updatedModal of
+                    Canceled ->
+                        ( { model | modal = updatedModal }  -- Model was canceled
+                        , Cmd.batch [Cmd.map ModalMsg cmdModal]
+                        )
+                    Closed ->
+                        (  { model | modal = updatedModal, confirmed = True } -- Modal was confirmed/acknowledged
+                        , Cmd.batch [Cmd.map ModalMsg cmdModal]
+                        )
+                    _ ->
+                        ( { model | modal = updatedModal }
+                        , Cmd.batch [Cmd.map ModalMsg cmdModal]
+                        )
 
 -}
 update : Msg msg -> Model msg -> ( Model msg, Cmd (Msg msg) )
@@ -284,30 +308,56 @@ view modal =
     Styled.toUnstyled <|
         case modal of
             Opening (Config config) ->
-                div [ modalFade ]
+                let
+                    updatefun =
+                        case config.modalOpeningFn of
+                            Nothing ->
+                                openingAnimationClass config.openingAnimation config.modalBodySettings
+
+                            Just fn ->
+                                fn
+                in
+                div [ Maybe.withDefault modalFade config.modalFadeFn ]
                     [ modalBodyView
                         (Just AnimationEnd)
-                        (openingAnimationClass config.openingAnimation config.modalBodySettings)
+                        updatefun
                         (Config config)
                     ]
 
             Opened (Config config) ->
-                div [ modalFade ]
+                let
+                    updatedOpenedFn =
+                        case config.modalOpenedFn of
+                            Nothing ->
+                                openedAnimationClass config.openedAnimation config.modalBodySettings
+
+                            Just openedFn ->
+                                openedFn
+                in
+                div [ Maybe.withDefault modalFade config.modalFadeFn ]
                     [ modalBodyView
                         Nothing
-                        (openedAnimationClass config.openedAnimation config.modalBodySettings)
+                        updatedOpenedFn
                         (Config config)
                     ]
 
             Closing (Config config) ->
+                let
+                    updatedClosingFn =
+                        case config.modalClosingFn of
+                            Nothing ->
+                                closingAnimationClass config.closingAnimation config.modalBodySettings
+
+                            Just closingFn ->
+                                closingFn
+                in
                 div
-                    [ modalFade
+                    [ Maybe.withDefault modalFade config.modalFadeFn
                     , modalClose
-                    , closingEffectClass config.closingEffect
                     ]
                     [ modalBodyView
                         (Just AnimationEnd)
-                        (closingAnimationClass config.closingAnimation config.modalBodySettings)
+                        updatedClosingFn
                         (Config config)
                     ]
 
@@ -316,13 +366,12 @@ view modal =
 
             Canceling (Config config) ->
                 div
-                    [ modalFade
+                    [ Maybe.withDefault modalFade config.modalFadeFn
                     , modalClose
-                    , closingEffectClass config.closingEffect
                     ]
                     [ modalBodyView
                         (Just AnimationEnd)
-                        (closingAnimationClass config.closingAnimation config.modalBodySettings)
+                        (Maybe.withDefault (closingAnimationClass config.closingAnimation config.modalBodySettings) config.modalClosingFn)
                         (Config config)
                     ]
 
@@ -430,6 +479,33 @@ setFooter newFooter config =
     mapConfig fn config
 
 
+setModalOpeningFn : Attribute msg -> Config msg -> Config msg
+setModalOpeningFn opening config =
+    let
+        fn (Config c) =
+            Config { c | modalOpeningFn = Just opening }
+    in
+    mapConfig fn config
+
+
+setModalOpenedFn : Attribute msg -> Config msg -> Config msg
+setModalOpenedFn opened config =
+    let
+        fn (Config c) =
+            Config { c | modalOpenedFn = Just opened }
+    in
+    mapConfig fn config
+
+
+setModalFadeFn : Attribute msg -> Config msg -> Config msg
+setModalFadeFn fade config =
+    let
+        fn (Config c) =
+            Config { c | modalFadeFn = Just fade }
+    in
+    mapConfig fn config
+
+
 setOpeningAnimation : OpeningAnimation -> Config msg -> Config msg
 setOpeningAnimation opening config =
     let
@@ -457,11 +533,20 @@ setClosingAnimation closing config =
     mapConfig fn config
 
 
-setClosingEffect : ClosingEffect -> Config msg -> Config msg
-setClosingEffect newClosingEffect config =
+setModalClosingFn : Attribute msg -> Config msg -> Config msg
+setModalClosingFn closing config =
     let
         fn (Config c) =
-            Config { c | closingEffect = newClosingEffect }
+            Config { c | modalClosingFn = Just closing }
+    in
+    mapConfig fn config
+
+
+setModalCloseFn : Attribute msg -> Config msg -> Config msg
+setModalCloseFn close config =
+    let
+        fn (Config c) =
+            Config { c | modalCloseFn = Just close }
     in
     mapConfig fn config
 
@@ -530,6 +615,9 @@ openingAnimationClass animation bodySettings =
         FromLeft ->
             modalLeftOpening bodySettings
 
+        FromNone ->
+            modalNoneOpening bodySettings
+
 
 openedAnimationClass : OpenedAnimation -> BodySettings -> Attribute msg
 openedAnimationClass animation bodySettings =
@@ -538,7 +626,7 @@ openedAnimationClass animation bodySettings =
             modalOpenFromTop bodySettings
 
         OpenFromRight ->
-            modalOpenFromRigth bodySettings
+            modalOpenFromRight bodySettings
 
         OpenFromBottom ->
             modalOpenFromBottom bodySettings
@@ -562,15 +650,8 @@ closingAnimationClass animation bodySettings =
         ToLeft ->
             modalLeftClosing bodySettings
 
-
-closingEffectClass : ClosingEffect -> Attribute msg
-closingEffectClass animation =
-    case animation of
-        WithoutAnimate ->
-            css [ Css.display Css.none ]
-
-        WithAnimate ->
-            css []
+        ToNone ->
+            modalNoneClosing bodySettings
 
 
 
@@ -617,20 +698,20 @@ modalTopOpening (BodySettings body) =
             (Animations.keyframes
                 [ ( 0
                   , [ Animations.property "opacity" "0"
-                    , Animations.property "left" body.center.value
+                    , Animations.property "left" (Debug.log "center1" body.center.value)
                     , Animations.property "top" "0"
                     ]
                   )
                 , ( 75
                   , [ Animations.property "opacity" "1"
-                    , Animations.property "left" body.center.value
-                    , Animations.property "top" body.fromTop.value
+                    , Animations.property "left" (Debug.log "center2" body.center.value)
+                    , Animations.property "top" (Debug.log "top1" body.fromTop.value)
                     ]
                   )
                 ]
             )
         , Css.property "animation-duration" "1s"
-        , Css.property "left" body.center.value
+        , Css.property "left" (Debug.log "center3" body.center.value)
         , Css.top body.fromTop
         , Css.position Css.absolute
         ]
@@ -714,6 +795,27 @@ modalLeftOpening (BodySettings body) =
         ]
 
 
+modalNoneOpening : BodySettings -> Attribute msg
+modalNoneOpening (BodySettings body) =
+    css
+        [ Css.animationName
+            (Animations.keyframes
+                [ ( 0
+                  , [ Animations.property "opacity" "0"
+                    ]
+                  )
+                , ( 75
+                  , [ Animations.property "opacity" "1"
+                    ]
+                  )
+                ]
+            )
+        , Css.property "animation-duration" "0s"
+        , Css.property "top" body.center.value
+        , Css.position Css.absolute
+        ]
+
+
 
 -- Open animations
 
@@ -744,8 +846,8 @@ modalOpenFromTop (BodySettings body) =
         ]
 
 
-modalOpenFromRigth : BodySettings -> Attribute msg
-modalOpenFromRigth (BodySettings body) =
+modalOpenFromRight : BodySettings -> Attribute msg
+modalOpenFromRight (BodySettings body) =
     css
         [ Css.property "right" body.center.value
         , Css.top body.fromTop
@@ -862,6 +964,33 @@ modalLeftClosing (BodySettings body) =
             (Animations.keyframes
                 [ ( 0
                   , [ Animations.property "opacity" "1"
+                    , Animations.property "left" (Debug.log "center:left" body.center.value)
+                    , Animations.property "top" (Debug.log "top:left:0" body.fromTop.value)
+                    ]
+                  )
+                , ( 100
+                  , [ Animations.property "opacity" "0"
+                    , Animations.property "left" "0"
+                    , Animations.property "top" (Debug.log "top:left:1000" body.fromTop.value)
+                    ]
+                  )
+                ]
+            )
+        , Css.property "animation-duration" "0.5s"
+        , Css.opacity (Css.int 0)
+        , Css.position Css.absolute
+        , Css.left (Css.px 0)
+        , Css.top body.fromTop
+        ]
+
+
+modalNoneClosing : BodySettings -> Attribute msg
+modalNoneClosing (BodySettings body) =
+    css
+        [ Css.animationName
+            (Animations.keyframes
+                [ ( 0
+                  , [ Animations.property "opacity" "1"
                     , Animations.property "left" body.center.value
                     , Animations.property "top" body.fromTop.value
                     ]
@@ -874,10 +1003,9 @@ modalLeftClosing (BodySettings body) =
                   )
                 ]
             )
-        , Css.property "animation-duration" "0.5s"
+        , Css.property "animation-duration" "0.0s"
         , Css.opacity (Css.int 0)
         , Css.position Css.absolute
-        , Css.left (Css.px 0)
         , Css.top body.fromTop
         ]
 
@@ -981,7 +1109,7 @@ setModalState msg modal =
             if msg == CancelModal then
                 Canceling config
 
-            else 
+            else
                 Closing config
 
         Closing _ ->
@@ -995,6 +1123,7 @@ setModalState msg modal =
 
         Canceled ->
             Canceled
+
 
 {-| @priv
 Centering and adaptive width for modal body
