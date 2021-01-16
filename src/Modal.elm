@@ -1,6 +1,5 @@
 module Modal exposing
     ( ClosingAnimation(..)
-    , ClosingEffect(..)
     , Config
     , Model(..)
     , Msg
@@ -20,7 +19,6 @@ module Modal exposing
     , setBodyHeight
     , setBodyWidth
     , setClosingAnimation
-    , setClosingEffect
     , setFooter
     , setFooterCss
     , setHeader
@@ -108,6 +106,7 @@ type OpeningAnimation
     | FromRight
     | FromBottom
     | FromLeft
+    | FromNone
 
 
 type OpenedAnimation
@@ -122,12 +121,8 @@ type ClosingAnimation
     | ToRight
     | ToBottom
     | ToLeft
-
-
-type ClosingEffect
-    = WithoutAnimate
-    | WithAnimate
-
+    | ToNone
+    
 
 type BodySettings
     = BodySettings
@@ -163,7 +158,6 @@ type Config msg
         { openingAnimation : OpeningAnimation
         , openedAnimation : OpenedAnimation
         , closingAnimation : ClosingAnimation
-        , closingEffect : ClosingEffect
         , headerCss : String
         , header : Header msg
         , bodyCss : String
@@ -186,7 +180,6 @@ newConfig tagger =
         { openingAnimation = FromTop
         , openedAnimation = OpenFromTop
         , closingAnimation = ToTop
-        , closingEffect = WithAnimate
         , headerCss = ""
         , header = text ""
         , bodyCss = ""
@@ -295,7 +288,7 @@ view modal =
         case modal of
             Opening (Config config) ->
                 div [ modalFade ]
-                    [ modalBodyView
+                 [ modalBodyView
                         (Just AnimationEnd)
                         (openingAnimationClass config.openingAnimation config.modalBodySettings)
                         (Config config)
@@ -313,7 +306,6 @@ view modal =
                 div
                     [ modalFade
                     , modalClose
-                    , closingEffectClass config.closingEffect
                     ]
                     [ modalBodyView
                         (Just AnimationEnd)
@@ -328,7 +320,6 @@ view modal =
                 div
                     [ modalFade
                     , modalClose
-                    , closingEffectClass config.closingEffect
                     ]
                     [ modalBodyView
                         (Just AnimationEnd)
@@ -467,13 +458,6 @@ setClosingAnimation closing config =
     mapConfig fn config
 
 
-setClosingEffect : ClosingEffect -> Config msg -> Config msg
-setClosingEffect newClosingEffect config =
-    let
-        fn (Config c) =
-            Config { c | closingEffect = newClosingEffect }
-    in
-    mapConfig fn config
 
 
 setBodyWidth : Float -> Config msg -> Config msg
@@ -540,6 +524,9 @@ openingAnimationClass animation bodySettings =
         FromLeft ->
             modalLeftOpening bodySettings
 
+        FromNone ->
+            modalNoneOpening bodySettings
+
 
 openedAnimationClass : OpenedAnimation -> BodySettings -> Attribute msg
 openedAnimationClass animation bodySettings =
@@ -572,16 +559,8 @@ closingAnimationClass animation bodySettings =
         ToLeft ->
             modalLeftClosing bodySettings
 
-
-closingEffectClass : ClosingEffect -> Attribute msg
-closingEffectClass animation =
-    case animation of
-        WithoutAnimate ->
-            css [ Css.display Css.none ]
-
-        WithAnimate ->
-            css []
-
+        ToNone ->
+            modalNoneClosing bodySettings
 
 
 -- Private css style and animations for modal window
@@ -724,6 +703,25 @@ modalLeftOpening (BodySettings body) =
         ]
 
 
+modalNoneOpening : BodySettings -> Attribute msg
+modalNoneOpening (BodySettings body) =
+    css
+        [ Css.animationName
+            (Animations.keyframes
+                [ ( 0
+                  , [ Animations.property "opacity" "0"
+                    ]
+                  )
+                , ( 75
+                  , [ Animations.property "opacity" "1"
+                    ]
+                  )
+                ]
+            )
+        , Css.property "animation-duration" "0s"
+        , Css.property "top" body.center.value
+        , Css.position Css.absolute
+        ]
 
 -- Open animations
 
@@ -891,6 +889,31 @@ modalLeftClosing (BodySettings body) =
         , Css.top body.fromTop
         ]
 
+
+modalNoneClosing : BodySettings -> Attribute msg
+modalNoneClosing (BodySettings body) =
+    css
+        [ Css.animationName
+            (Animations.keyframes
+                [ ( 0
+                  , [ Animations.property "opacity" "1"
+                    , Animations.property "left" body.center.value
+                    , Animations.property "top" body.fromTop.value
+                    ]
+                  )
+                , ( 100
+                  , [ Animations.property "opacity" "0"
+                    , Animations.property "left" "0"
+                    , Animations.property "top" body.fromTop.value
+                    ]
+                  )
+                ]
+            )
+        , Css.property "animation-duration" "0.0s"
+        , Css.opacity (Css.int 0)
+        , Css.position Css.absolute
+        , Css.top body.fromTop
+        ]
 
 
 -- Modal close animation
