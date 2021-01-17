@@ -24,11 +24,6 @@ module Modal exposing
     , setFooterCss
     , setHeader
     , setHeaderCss
-    , setModalCloseFn
-    , setModalClosingFn
-    , setModalFadeFn
-    , setModalOpenedFn
-    , setModalOpeningFn
     , setOpenedAnimation
     , setOpeningAnimation
     , subscriptions
@@ -225,9 +220,6 @@ closeModal fn =
     fn CloseModal
 
 
-cancelModal : (Msg msg -> msg) -> msg
-cancelModal fn =
-    fn CancelModal
 cancelModal : (Msg msg -> msg) -> msg
 cancelModal fn =
     fn CancelModal
@@ -479,33 +471,6 @@ setFooter newFooter config =
     mapConfig fn config
 
 
-setModalOpeningFn : Attribute msg -> Config msg -> Config msg
-setModalOpeningFn opening config =
-    let
-        fn (Config c) =
-            Config { c | modalOpeningFn = Just opening }
-    in
-    mapConfig fn config
-
-
-setModalOpenedFn : Attribute msg -> Config msg -> Config msg
-setModalOpenedFn opened config =
-    let
-        fn (Config c) =
-            Config { c | modalOpenedFn = Just opened }
-    in
-    mapConfig fn config
-
-
-setModalFadeFn : Attribute msg -> Config msg -> Config msg
-setModalFadeFn fade config =
-    let
-        fn (Config c) =
-            Config { c | modalFadeFn = Just fade }
-    in
-    mapConfig fn config
-
-
 setOpeningAnimation : OpeningAnimation -> Config msg -> Config msg
 setOpeningAnimation opening config =
     let
@@ -529,24 +494,6 @@ setClosingAnimation closing config =
     let
         fn (Config c) =
             Config { c | closingAnimation = closing }
-    in
-    mapConfig fn config
-
-
-setModalClosingFn : Attribute msg -> Config msg -> Config msg
-setModalClosingFn closing config =
-    let
-        fn (Config c) =
-            Config { c | modalClosingFn = Just closing }
-    in
-    mapConfig fn config
-
-
-setModalCloseFn : Attribute msg -> Config msg -> Config msg
-setModalCloseFn close config =
-    let
-        fn (Config c) =
-            Config { c | modalCloseFn = Just close }
     in
     mapConfig fn config
 
