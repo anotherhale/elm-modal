@@ -516,7 +516,7 @@ openingAnimationClass animation bodySettings =
             modalTopOpening bodySettings
 
         FromRight ->
-            modalRigthOpening bodySettings
+            modalRightOpening bodySettings
 
         FromBottom ->
             modalBottomOpening bodySettings
@@ -625,8 +625,8 @@ modalTopOpening (BodySettings body) =
         ]
 
 
-modalRigthOpening : BodySettings -> Attribute msg
-modalRigthOpening (BodySettings body) =
+modalRightOpening : BodySettings -> Attribute msg
+modalRightOpening (BodySettings body) =
     css
         [ Css.animationName
             (Animations.keyframes
